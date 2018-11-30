@@ -68,28 +68,40 @@ seqs = []
 for s in recs:
     i = s.name.find(' ')
     intervals = contams.get(s.name)
-    if intervals is None:
+    if intervals is None or len(intervals) == 0:
         seqs.append(s)
+        continue
+    intervals = sort_condense(intervals)
+    do_write = False
+    if (intervals[0][0] >= 100
+       or len(s.seq) - intervals[len(intervals)-1][1] >= 100):
+        do_write = True
     else:
-        if len(intervals) == 0:
-            continue
-        intervals = sort_condense(intervals)
-        print(s.name, len(s.seq), intervals, file=stderr, flush=True)
-        do_write = False
-        if (intervals[0][0] >= 100
-           or len(s.seq) - intervals[len(intervals)-1][1] >= 100):
-            do_write = True
-        else:
-            for i in range(len(intervals)-1):
-                if intervals[i+1][0] - intervals[i][1] >= 100:
+        for i in range(len(intervals)-1):
+            size = intervals[i+1][0] - intervals[i][1]
+            if size >= 100:
+                seq = str(s.seq)[intervals[i][1] : intervals[i+1][0]]
+                maxok = 0
+                ok = 0
+                for c in seq:
+                    if c in 'ACGT':
+                        ok = ok+1
+                    else:
+                        if ok > maxok:
+                            maxok = ok
+                        ok = 0
+                if ok > maxok:
+                    maxok = ok
+                if maxok >= 100:
                     do_write = True
                     break
-        if do_write:
-            seq = str(s.seq)
-            for iv in intervals:
-                seq = seq[:iv[0]] + 'N'*(iv[1]-iv[0]+1) + seq[iv[1]+1:]
-            s.seq = Seq.Seq(seq)
-            seqs.append(s)
-            continue
+    if do_write:
+        seq = str(s.seq)
+        for iv in intervals:
+            seq = seq[:iv[0]] + 'N'*(iv[1]-iv[0]+1) + seq[iv[1]+1:]
+        s.seq = Seq.Seq(seq)
+        seqs.append(s)
+    else:
+        print(s.name, file=stderr, flush=True)
 
 SeqIO.write(seqs, stdout, 'fasta')
